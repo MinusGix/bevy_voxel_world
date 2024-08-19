@@ -49,7 +49,10 @@ where
         }
     }
 
-    pub fn minimal() -> Self {
+    pub fn minimal() -> Self
+    where
+        C: Default,
+    {
         Self {
             spawn_meshes: false,
             use_custom_material: false,
@@ -100,7 +103,7 @@ where
     M: Material,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<C>()
+        app.insert_resource(self.config.clone())
             .add_systems(PreStartup, Internals::<C>::setup)
             .add_systems(
                 PreUpdate,
@@ -197,8 +200,6 @@ where
             });
             app.insert_resource(VoxelWorldMaterialHandle { handle: mat_handle });
             app.insert_resource(TextureLayers(texture_layers));
-
-            app.insert_resource(self.config.clone());
 
             app.add_systems(Update, prepare_texture);
 

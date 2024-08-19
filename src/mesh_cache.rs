@@ -54,5 +54,10 @@ impl<C> Default for MeshCache<C> {
     }
 }
 
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(Resource, Deref, DerefMut)]
 pub(crate) struct MeshCacheInsertBuffer<C>(#[deref] Vec<(u64, Arc<Handle<Mesh>>)>, PhantomData<C>);
+impl<C> Default for MeshCacheInsertBuffer<C> {
+    fn default() -> Self {
+        Self(Vec::new(), PhantomData)
+    }
+}

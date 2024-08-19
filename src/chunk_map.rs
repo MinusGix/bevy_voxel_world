@@ -150,14 +150,29 @@ impl<C> Default for ChunkMap<C> {
     }
 }
 
-#[derive(Resource, Deref, DerefMut, Default, Debug)]
+#[derive(Resource, Deref, DerefMut, Debug)]
 pub(crate) struct ChunkMapInsertBuffer<C>(#[deref] Vec<(IVec3, chunk::ChunkData)>, PhantomData<C>);
+impl<C> Default for ChunkMapInsertBuffer<C> {
+    fn default() -> Self {
+        Self(Vec::default(), PhantomData)
+    }
+}
 
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(Resource, Deref, DerefMut)]
 pub(crate) struct ChunkMapUpdateBuffer<C>(
     #[deref] Vec<(IVec3, chunk::ChunkData, ChunkWillSpawn<C>)>,
     PhantomData<C>,
 );
+impl<C> Default for ChunkMapUpdateBuffer<C> {
+    fn default() -> Self {
+        Self(Vec::default(), PhantomData)
+    }
+}
 
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(Resource, Deref, DerefMut)]
 pub(crate) struct ChunkMapRemoveBuffer<C>(#[deref] Vec<IVec3>, PhantomData<C>);
+impl<C> Default for ChunkMapRemoveBuffer<C> {
+    fn default() -> Self {
+        Self(Vec::default(), PhantomData)
+    }
+}

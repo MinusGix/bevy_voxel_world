@@ -32,7 +32,7 @@ pub enum ChunkSpawnStrategy {
 }
 
 /// `bevy_voxel_world` configuation structs need to implement this trait
-pub trait VoxelWorldConfig: Resource + Default + Clone {
+pub trait VoxelWorldConfig: Resource + Clone {
     /// Distance in chunks to spawn chunks around the camera
     fn spawning_distance(&self) -> u32 {
         10

@@ -53,8 +53,13 @@ impl<C: VoxelWorldConfig> ModifiedVoxels<C> {
 
 /// A temporary buffer for voxel modifications that will get flushed to the `ModifiedVoxels` resource
 /// at the end of the frame.
-#[derive(Resource, Deref, DerefMut, Default)]
+#[derive(Resource, Deref, DerefMut)]
 pub struct VoxelWriteBuffer<C>(#[deref] Vec<(IVec3, WorldVoxel)>, PhantomData<C>);
+impl<C> Default for VoxelWriteBuffer<C> {
+    fn default() -> Self {
+        Self(Vec::new(), PhantomData)
+    }
+}
 
 #[derive(Component)]
 pub(crate) struct NeedsMaterial<C>(PhantomData<C>);
