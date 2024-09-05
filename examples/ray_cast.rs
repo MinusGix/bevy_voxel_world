@@ -21,8 +21,12 @@ impl VoxelWorldConfig for MyMainWorld {
         })
     }
 
-    fn voxel_texture(&self) -> Option<(String, u32)> {
-        Some(("example_voxel_texture.png".into(), 4))
+    fn voxel_texture(&self) -> Option<VoxelTexture> {
+        Some(VoxelTexture {
+            path: "example_voxel_texture.png".into(),
+            index_count: 4,
+            normal_path: None,
+        })
     }
 }
 

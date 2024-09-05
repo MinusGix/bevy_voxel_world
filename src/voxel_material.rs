@@ -15,7 +15,9 @@ use bevy::{
 #[derive(Resource)]
 pub(crate) struct LoadingTexture {
     pub is_loaded: bool,
+    pub is_loaded_normal: bool,
     pub handle: Handle<Image>,
+    pub normal_handle: Handle<Image>,
 }
 
 #[derive(Resource)]
@@ -44,6 +46,9 @@ pub(crate) struct StandardVoxelMaterial {
     #[texture(100, dimension = "2d_array")]
     #[sampler(101)]
     pub voxels_texture: Handle<Image>,
+    #[texture(102, dimension = "2d_array")]
+    #[sampler(103)]
+    pub normal_texture: Handle<Image>,
 }
 
 impl MaterialExtension for StandardVoxelMaterial {
@@ -73,14 +78,26 @@ pub(crate) fn prepare_texture(
     mut loading_texture: ResMut<LoadingTexture>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    if loading_texture.is_loaded
-        || asset_server.get_load_state(loading_texture.handle.clone().id())
-            != Some(bevy::asset::LoadState::Loaded)
+    // TODO: after initialization this system should never really run again. Can we kill it?
+    let image_load_state = asset_server.get_load_state(loading_texture.handle.clone().id());
+    let normal_image_load_state =
+        asset_server.get_load_state(loading_texture.normal_handle.clone().id());
+    if (loading_texture.is_loaded && loading_texture.is_loaded_normal)
+        || image_load_state != Some(bevy::asset::LoadState::Loaded)
+        || (!loading_texture.is_loaded_normal
+            && normal_image_load_state != Some(bevy::asset::LoadState::Loaded))
     {
         return;
     }
     loading_texture.is_loaded = true;
+    loading_texture.is_loaded_normal = true;
 
     let image = images.get_mut(&loading_texture.handle).unwrap();
+
     image.reinterpret_stacked_2d_as_array(texture_layers.0);
+
+    if !loading_texture.is_loaded_normal {
+        let normal_image = images.get_mut(&loading_texture.normal_handle).unwrap();
+        normal_image.reinterpret_stacked_2d_as_array(texture_layers.0);
+    }
 }

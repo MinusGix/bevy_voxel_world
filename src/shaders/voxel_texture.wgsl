@@ -1,6 +1,7 @@
 #import bevy_pbr::{
     pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::alpha_discard,
+    pbr_functions as fns,
     mesh_functions,
     view_transformations::position_world_to_clip
 }
@@ -23,6 +24,12 @@ var mat_array_texture: texture_2d_array<f32>;
 
 @group(2) @binding(101)
 var mat_array_texture_sampler: sampler;
+
+@group(2) @binding(102)
+var mat_array_normal_texture: texture_2d_array<f32>;
+
+@group(2) @binding(103)
+var mat_array_normal_texture_sampler: sampler;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
@@ -141,6 +148,20 @@ fn fragment(
     pbr_input.material.base_color = pbr_input.material.base_color * in.color;
 
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
+
+#ifdef VERTEX_TANGENTS
+    // TODO: bevy's array_texture shader uses mip_bias
+    let Nt = textureSample(mat_array_normal_texture, mat_array_normal_texture_sampler, in.uv, in.tex_idx[tex_face]);
+    let TBN = fns::calculate_tbn_mikktspace(pbr_input.world_normal, in.world_tangent);
+
+    pbr_input.N = fns::apply_normal_mapping(
+        pbr_input.material.flags,
+        TBN,
+        /* double_sided */ false,
+        is_front,
+        Nt
+    );
+#endif
 
 #ifdef PREPASS_PIPELINE
     let out = deferred_output(in, pbr_input);

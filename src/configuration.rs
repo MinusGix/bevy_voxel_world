@@ -31,6 +31,12 @@ pub enum ChunkSpawnStrategy {
     Close,
 }
 
+pub struct VoxelTexture {
+    pub path: String,
+    pub normal_path: Option<String>,
+    pub index_count: u32,
+}
+
 /// `bevy_voxel_world` configuation structs need to implement this trait
 pub trait VoxelWorldConfig: Resource + Clone {
     /// Distance in chunks to spawn chunks around the camera
@@ -98,7 +104,7 @@ pub trait VoxelWorldConfig: Resource + Clone {
     }
 
     /// A tuple of the path to the texture and the number of indexes in the texture. `None` if no texture is used.
-    fn voxel_texture(&self) -> Option<(String, u32)> {
+    fn voxel_texture(&self) -> Option<VoxelTexture> {
         None
     }
 
