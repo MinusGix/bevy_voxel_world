@@ -4,19 +4,14 @@ use bevy::{
     prelude::*,
     render::{
         render_asset::RenderAssetUsages,
-        render_resource::{Extent3d, TextureDimension, TextureFormat},
-        texture::{
-            CompressedImageFormats, ImageAddressMode, ImageFilterMode, ImageSampler,
-            ImageSamplerDescriptor, ImageType,
-        },
+        texture::{CompressedImageFormats, ImageSampler, ImageType},
     },
 };
 
 use crate::{
     configuration::{DefaultWorld, VoxelWorldConfig},
     voxel_material::{
-        prepare_texture, LoadingTexture, StandardVoxelMaterial, TextureLayers,
-        VOXEL_TEXTURE_SHADER_HANDLE,
+        prepare_texture, LoadingTexture, StandardVoxelMaterial, VOXEL_TEXTURE_SHADER_HANDLE,
     },
     voxel_world::*,
     voxel_world_internal::Internals,
@@ -158,7 +153,6 @@ where
             let mut preloaded_texture = true;
             let mut preloaded_normal = true;
             let texture_conf = self.config.voxel_texture();
-            let mut texture_layers = 0;
 
             // Use built-in default texture if no texture is specified.
             let (image_handle, normal_handle) = if texture_conf.is_none() {
@@ -173,23 +167,20 @@ where
                 .unwrap();
                 image.reinterpret_stacked_2d_as_array(4);
                 let mut image_assets = app.world_mut().resource_mut::<Assets<Image>>();
-                let normal_image = default_normal_map(4);
-                (image_assets.add(image), image_assets.add(normal_image))
+                (image_assets.add(image), image_assets.add(Image::default()))
             } else {
-                let texture = texture_conf.unwrap();
-                texture_layers = texture.index_count;
+                let texture = texture_conf.as_ref().unwrap();
                 let asset_server = app.world().get_resource::<AssetServer>().unwrap();
                 preloaded_texture = false;
 
-                let image = asset_server.load(texture.path);
+                let image = asset_server.load(texture.path.clone());
 
-                let normal_image = if let Some(normal_path) = texture.normal_path {
+                let normal_image = if let Some(normal_path) = texture.normal_path.as_ref() {
                     preloaded_normal = false;
-                    asset_server.load(normal_path)
+                    asset_server.load(normal_path.clone())
                 } else {
                     let mut image_assets = app.world_mut().resource_mut::<Assets<Image>>();
-                    let normal = default_normal_map(texture_layers);
-                    image_assets.add(normal)
+                    image_assets.add(Image::default())
                 };
 
                 (image, normal_image)
@@ -216,11 +207,11 @@ where
             app.insert_resource(LoadingTexture {
                 is_loaded: preloaded_texture,
                 is_loaded_normal: preloaded_normal,
+                texture_layers: texture_conf.and_then(|t| t.index_count),
                 handle: image_handle,
                 normal_handle: normal_handle.clone(),
             });
             app.insert_resource(VoxelWorldMaterialHandle { handle: mat_handle });
-            app.insert_resource(TextureLayers(texture_layers));
 
             app.add_systems(Update, prepare_texture);
 
@@ -242,6 +233,7 @@ where
             app.insert_resource(LoadingTexture {
                 is_loaded: true,
                 is_loaded_normal: true,
+                texture_layers: None,
                 handle: Handle::default(),
                 normal_handle: Handle::default(),
             });
@@ -249,43 +241,4 @@ where
             app.add_systems(Update, Internals::<C>::assign_material::<M>);
         }
     }
-}
-
-fn default_normal_map(layers: u32) -> Image {
-    let size = Extent3d {
-        width: 2,
-        height: 2 * layers,       // Multiply height by layers
-        depth_or_array_layers: 1, // Initially set to 1
-    };
-
-    // Create data for all layers
-    let mut data = Vec::with_capacity((4 * 4 * layers) as usize);
-    for _ in 0..layers {
-        data.extend_from_slice(&[
-            128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255,
-        ]);
-    }
-
-    let mut image = Image::new(
-        size,
-        TextureDimension::D2,
-        data,
-        TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::all(),
-    );
-
-    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        address_mode_u: ImageAddressMode::Repeat,
-        address_mode_v: ImageAddressMode::Repeat,
-        address_mode_w: ImageAddressMode::Repeat,
-        mag_filter: ImageFilterMode::Linear,
-        min_filter: ImageFilterMode::Linear,
-        mipmap_filter: ImageFilterMode::Linear,
-        ..Default::default()
-    });
-
-    // Now this call will succeed
-    image.reinterpret_stacked_2d_as_array(layers);
-
-    image
 }

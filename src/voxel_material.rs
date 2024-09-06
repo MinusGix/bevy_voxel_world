@@ -4,10 +4,12 @@ use bevy::{
     reflect::TypePath,
     render::{
         mesh::{MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeDescriptor},
+        render_asset::RenderAssetUsages,
         render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
-            VertexFormat,
+            AsBindGroup, Extent3d, RenderPipelineDescriptor, ShaderRef,
+            SpecializedMeshPipelineError, TextureDimension, TextureFormat, VertexFormat,
         },
+        texture::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     },
 };
 
@@ -16,12 +18,10 @@ use bevy::{
 pub(crate) struct LoadingTexture {
     pub is_loaded: bool,
     pub is_loaded_normal: bool,
+    pub texture_layers: Option<u32>,
     pub handle: Handle<Image>,
     pub normal_handle: Handle<Image>,
 }
-
-#[derive(Resource)]
-pub(crate) struct TextureLayers(pub u32);
 
 pub const VOXEL_TEXTURE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(6998301138411443008);
 
@@ -74,7 +74,6 @@ impl MaterialExtension for StandardVoxelMaterial {
 
 pub(crate) fn prepare_texture(
     asset_server: Res<AssetServer>,
-    texture_layers: Res<TextureLayers>,
     mut loading_texture: ResMut<LoadingTexture>,
     mut images: ResMut<Assets<Image>>,
 ) {
@@ -93,11 +92,62 @@ pub(crate) fn prepare_texture(
     loading_texture.is_loaded_normal = true;
 
     let image = images.get_mut(&loading_texture.handle).unwrap();
+    let texture_layers = loading_texture
+        .texture_layers
+        .unwrap_or_else(|| image.texture_descriptor.size.depth_or_array_layers);
 
-    image.reinterpret_stacked_2d_as_array(texture_layers.0);
-
-    if !loading_texture.is_loaded_normal {
-        let normal_image = images.get_mut(&loading_texture.normal_handle).unwrap();
-        normal_image.reinterpret_stacked_2d_as_array(texture_layers.0);
+    if image.texture_descriptor.size.depth_or_array_layers != texture_layers {
+        image.reinterpret_stacked_2d_as_array(texture_layers);
     }
+
+    let normal_image = images.get_mut(&loading_texture.normal_handle).unwrap();
+    if loading_texture.is_loaded_normal {
+        // TODO: is there a way to get around needing to know the number of layers here to ensure that the normal map in the shader
+        // is a 2D array? We could use ifdefs for this... and then we don't have to create a normal map at all.
+        // We put off creating the default normal map until now so that we know the number of layers
+        *normal_image = default_normal_map(texture_layers);
+    } else {
+        if normal_image.texture_descriptor.size.depth_or_array_layers != texture_layers {
+            normal_image.reinterpret_stacked_2d_as_array(texture_layers);
+        }
+    }
+}
+
+fn default_normal_map(layers: u32) -> Image {
+    let size = Extent3d {
+        width: 2,
+        height: 2 * layers,       // Multiply height by layers
+        depth_or_array_layers: 1, // Initially set to 1
+    };
+
+    // Create data for all layers
+    let mut data = Vec::with_capacity((4 * 4 * layers) as usize);
+    for _ in 0..layers {
+        data.extend_from_slice(&[
+            128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255,
+        ]);
+    }
+
+    let mut image = Image::new(
+        size,
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8Unorm,
+        RenderAssetUsages::all(),
+    );
+
+    image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
+        address_mode_w: ImageAddressMode::Repeat,
+        mag_filter: ImageFilterMode::Linear,
+        min_filter: ImageFilterMode::Linear,
+        mipmap_filter: ImageFilterMode::Linear,
+        ..Default::default()
+    });
+
+    // Now this call will succeed
+    image.reinterpret_stacked_2d_as_array(layers);
+
+    image
 }

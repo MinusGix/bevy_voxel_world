@@ -31,10 +31,15 @@ pub enum ChunkSpawnStrategy {
     Close,
 }
 
+#[derive(Debug, Clone)]
 pub struct VoxelTexture {
+    /// Path to the texture
     pub path: String,
+    /// Path to the normal map
     pub normal_path: Option<String>,
-    pub index_count: u32,
+    /// Number of indexes in the texture. If this is None it will be automatically inferred from the loaded image.  
+    /// (For png files this should usually/always be set manually, for ktx/ktx2 it may have been automatically set by your generation method)
+    pub index_count: Option<u32>,
 }
 
 /// `bevy_voxel_world` configuation structs need to implement this trait
