@@ -3,9 +3,11 @@
     pbr_functions::alpha_discard,
     pbr_functions as fns,
     mesh_functions,
-    view_transformations::position_world_to_clip
+    view_transformations::position_world_to_clip,
+    mesh_view_bindings::view,
 }
 #import bevy_render::instance_index::get_instance_index
+#import bevy_core_pipeline::tonemapping::tone_mapping
 
 #ifdef PREPASS_PIPELINE
 #import bevy_pbr::{
@@ -149,10 +151,21 @@ fn fragment(
 
     pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
+    // TODO: pbr_input_from_standard_material might already do this?
+    pbr_input.world_normal = fns::prepare_world_normal(
+        in.world_normal,
+        /* double_sided */ false,
+        is_front
+    );
+
+    pbr_input.is_orthographic = view.clip_from_view[3].w == 1.0;
+
+    pbr_input.N = normalize(pbr_input.world_normal);
+
 #ifdef VERTEX_TANGENTS
     // TODO: bevy's array_texture shader uses mip_bias
-    let Nt = textureSample(mat_array_normal_texture, mat_array_normal_texture_sampler, in.uv, in.tex_idx[tex_face]);
-    let TBN = fns::calculate_tbn_mikktspace(pbr_input.world_normal, in.world_tangent);
+    let Nt = textureSampleBias(mat_array_normal_texture, mat_array_normal_texture_sampler, in.uv, in.tex_idx[tex_face], view.mip_bias).rgb;
+    let TBN = fns::calculate_tbn_mikktspace(in.world_normal, in.world_tangent);
 
     pbr_input.N = fns::apply_normal_mapping(
         pbr_input.material.flags,
@@ -163,6 +176,8 @@ fn fragment(
     );
 #endif
 
+    // TODO: should we set pbr_input.V
+
 #ifdef PREPASS_PIPELINE
     let out = deferred_output(in, pbr_input);
 #else
@@ -171,5 +186,9 @@ fn fragment(
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
 
-    return out;   
+    pbr_input.V = fns::calculate_view(in.world_position, pbr_input.is_orthographic);
+
+    out.color = tone_mapping(fns::apply_pbr_lighting(pbr_input), view.color_grading);
+
+    return out;
 }
