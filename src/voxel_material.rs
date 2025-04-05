@@ -1,12 +1,17 @@
+use std::borrow::Cow;
+
 use bevy::{
-    pbr::{MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
+    pbr::{
+        MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline, MaterialPipelineKey,
+        MeshPipelineKey,
+    },
     prelude::*,
     reflect::TypePath,
     render::{
         mesh::{MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeDescriptor},
         render_asset::RenderAssetUsages,
         render_resource::{
-            AsBindGroup, Extent3d, RenderPipelineDescriptor, ShaderRef,
+            AsBindGroup, Extent3d, RenderPipelineDescriptor, ShaderDefVal, ShaderRef,
             SpecializedMeshPipelineError, TextureDimension, TextureFormat, VertexFormat,
         },
         texture::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
@@ -25,22 +30,35 @@ pub(crate) struct LoadingTexture {
 
 pub const VOXEL_TEXTURE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(6998301138411443008);
 
+pub const VOXEL_TEXTURE_PREPASS_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(6998301138411443009);
+
 pub(crate) const ATTRIBUTE_TEX_INDEX: MeshVertexAttribute =
     MeshVertexAttribute::new("TextureIndex", 989640910, VertexFormat::Uint32x3);
 
-pub fn vertex_layout() -> Vec<VertexAttributeDescriptor> {
-    vec![
-        Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
-        Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
-        Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
-        //Mesh::ATTRIBUTE_TANGENT.at_shader_location(4),
-        Mesh::ATTRIBUTE_COLOR.at_shader_location(5),
-        Mesh::ATTRIBUTE_COLOR.at_shader_location(7),
-        //Mesh::ATTRIBUTE_JOINT_INDEX.at_shader_location(6),
-        //Mesh::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(7),
-        ATTRIBUTE_TEX_INDEX.at_shader_location(8),
-    ]
-}
+const VERTEX_LAYOUT: &[VertexAttributeDescriptor] = &[
+    Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+    Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+    Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
+    //Mesh::ATTRIBUTE_TANGENT.at_shader_location(4),
+    Mesh::ATTRIBUTE_COLOR.at_shader_location(5),
+    Mesh::ATTRIBUTE_COLOR.at_shader_location(7),
+    //Mesh::ATTRIBUTE_JOINT_INDEX.at_shader_location(6),
+    //Mesh::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(7),
+    ATTRIBUTE_TEX_INDEX.at_shader_location(8),
+];
+
+const VERTEX_LAYOUT_PREPASS: &[VertexAttributeDescriptor] = &[
+    Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+    Mesh::ATTRIBUTE_UV_0.at_shader_location(1),
+    // Mesh::ATTRIBUTE_UV_1.at_shader_location(2),
+    Mesh::ATTRIBUTE_NORMAL.at_shader_location(3),
+    // Mesh::ATTRIBUTE_TANGENT.at_shader_location(4),
+    //Mesh::ATTRIBUTE_JOINT_INDEX.at_shader_location(5),
+    //Mesh::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(6),
+    Mesh::ATTRIBUTE_COLOR.at_shader_location(7),
+    ATTRIBUTE_TEX_INDEX.at_shader_location(8),
+];
 #[derive(Asset, AsBindGroup, Debug, Clone, TypePath)]
 pub(crate) struct StandardVoxelMaterial {
     #[texture(100, dimension = "2d_array")]
@@ -60,15 +78,41 @@ impl MaterialExtension for StandardVoxelMaterial {
         VOXEL_TEXTURE_SHADER_HANDLE.into()
     }
 
+    // fn prepass_vertex_shader() -> ShaderRef {
+    //     VOXEL_TEXTURE_PREPASS_SHADER_HANDLE.into()
+    // }
+
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,
         descriptor: &mut RenderPipelineDescriptor,
         layout: &MeshVertexBufferLayoutRef,
-        _key: MaterialExtensionKey<Self>,
+        key: MaterialExtensionKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
-        let vertex_layout = layout.0.get_layout(&vertex_layout())?;
-        descriptor.vertex.buffers = vec![vertex_layout];
+        // println!("Descriptor: {descriptor:?}\n=====\n");
+        // println!(
+        //     "Key NORMAL_PREPASS: {}",
+        //     key.contains(MaterialPipelineKey::NORMAL_PREPASS)
+        // );
+        println!("MeshKey: {:?}", key.mesh_key);
+        println!("\tLayout: {:?}", layout);
+        // if descriptor.label != Some(Cow::Borrowed("pbr_prepass_pipeline")) {
+        // if key.mesh_key.contains(MeshPipelineKey::NORMAL_PREPASS) {
+        if descriptor.label == Some(Cow::Borrowed("pbr_prepass_pipeline")) {
+            let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT_PREPASS)?;
+            descriptor.vertex.buffers = vec![vertex_layout];
+        } else {
+            let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT)?;
+            descriptor.vertex.buffers = vec![vertex_layout];
+        }
         Ok(())
+    }
+}
+
+fn shader_def_name(v: &ShaderDefVal) -> &str {
+    match v {
+        ShaderDefVal::Bool(name, _) | ShaderDefVal::Int(name, _) | ShaderDefVal::UInt(name, _) => {
+            name
+        }
     }
 }
 

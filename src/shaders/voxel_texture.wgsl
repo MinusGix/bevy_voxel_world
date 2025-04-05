@@ -33,8 +33,54 @@ var mat_array_normal_texture: texture_2d_array<f32>;
 @group(2) @binding(103)
 var mat_array_normal_texture_sampler: sampler;
 
+// The ordering is different between the prepass and non-prepass for some reason...
+// #ifdef PREPASS_PIPELINE
+// struct Vertex {
+//     @builtin(instance_index) instance_index: u32,
+//     // TODO: Should this check, prepass_io::Vertex doesn't
+// // #ifdef VERTEX_POSITIONS
+// //     @location(0) position: vec3<f32>,
+// // #endif
+
+// // #ifdef VERTEX_UVS_A
+// //     @location(1) uv: vec2<f32>,
+// // #endif
+
+// // #ifdef VERTEX_UVS_B
+// //     @location(2) uv_b: vec2<f32>,
+// // #endif
+
+// // #ifdef NORMAL_PREPASS_OR_DEFERRED_PREPASS
+// //     @location(3) normal: vec3<f32>,
+// // #ifdef VERTEX_TANGENTS
+// //     @location(4) tangent: vec4<f32>,
+// // #endif
+// // #endif
+
+// // #ifdef SKINNED
+// //     @location(5) joint_indices: vec4<u32>,
+// //     @location(6) joint_weights: vec4<f32>,
+// // #endif
+
+// // #ifdef VERTEX_COLORS
+// //     @location(7) color: vec4<f32>,
+// // #endif
+
+// // #ifdef MORPH_TARGETS
+// //     @builtin(vertex_index) index: u32,
+// // #endif
+
+// //     @location(8) tex_idx: vec3<u32>,
+// }
+
+// struct CustomVertexOutput {
+//     @builtin(position): vec4<f32>,
+//     @location(3) normal: vec3<f32>,
+// }
+// #else
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
+    
 #ifdef VERTEX_POSITIONS
     @location(0) position: vec3<f32>,
 #endif
@@ -44,12 +90,14 @@ struct Vertex {
 #ifdef VERTEX_UVS
     @location(2) uv: vec2<f32>,
 #endif
-#ifdef VERTEX_UVS_B
-    @location(3) uv_b: vec2<f32>,
-#endif
-#ifdef VERTEX_TANGENTS
-    @location(4) tangent: vec4<f32>,
-#endif
+// #ifdef VERTEX_UVS_B
+//     @location(3) uv_b: vec2<f32>,
+// #endif
+
+// #ifdef VERTEX_TANGENTS
+//     @location(4) tangent: vec4<f32>,
+// #endif
+
 #ifdef VERTEX_COLORS
     @location(5) color: vec4<f32>,
 #endif
@@ -57,6 +105,7 @@ struct Vertex {
 //     @location(6) joint_indices: vec4<u32>,
 //     @location(7) joint_weights: vec4<f32>,
 // #endif
+
 #ifdef MORPH_TARGETS
     @builtin(vertex_index) index: u32,
 #endif
@@ -66,6 +115,7 @@ struct Vertex {
 
 struct CustomVertexOutput {
     @builtin(position) position: vec4<f32>,
+    
     @location(0) world_position: vec4<f32>,
     @location(1) world_normal: vec3<f32>,
 #ifdef VERTEX_UVS
@@ -86,6 +136,9 @@ struct CustomVertexOutput {
 
     @location(8) tex_idx: vec3<u32>,
 }
+
+// #endif
+
 
 @vertex
 fn vertex(vertex: Vertex) -> CustomVertexOutput {

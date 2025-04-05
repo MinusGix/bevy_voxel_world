@@ -23,8 +23,9 @@ pub mod prelude {
 
 pub mod rendering {
     pub use crate::plugin::VoxelWorldMaterialHandle;
-    pub use crate::voxel_material::vertex_layout;
-    pub use crate::voxel_material::VOXEL_TEXTURE_SHADER_HANDLE;
+    pub use crate::voxel_material::{
+        VOXEL_TEXTURE_PREPASS_SHADER_HANDLE, VOXEL_TEXTURE_SHADER_HANDLE,
+    };
 }
 
 pub mod traversal_alg {

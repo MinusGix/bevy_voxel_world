@@ -11,7 +11,8 @@ use bevy::{
 use crate::{
     configuration::{DefaultWorld, VoxelWorldConfig},
     voxel_material::{
-        prepare_texture, LoadingTexture, StandardVoxelMaterial, VOXEL_TEXTURE_SHADER_HANDLE,
+        prepare_texture, LoadingTexture, StandardVoxelMaterial,
+        VOXEL_TEXTURE_PREPASS_SHADER_HANDLE, VOXEL_TEXTURE_SHADER_HANDLE,
     },
     voxel_world::*,
     voxel_world_internal::Internals,
@@ -134,6 +135,13 @@ where
                 app,
                 VOXEL_TEXTURE_SHADER_HANDLE,
                 "shaders/voxel_texture.wgsl",
+                Shader::from_wgsl
+            );
+
+            load_internal_asset!(
+                app,
+                VOXEL_TEXTURE_PREPASS_SHADER_HANDLE,
+                "shaders/voxel_texture_prepass.wgsl",
                 Shader::from_wgsl
             );
 

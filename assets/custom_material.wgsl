@@ -1,4 +1,8 @@
-#import bevy_pbr::forward_io::{VertexOutput, FragmentOutput};
+#ifdef PREPASS_PIPELINE
+#import bevy_pbr::prepass_io::{VertexOutput, FragmentOutput}
+#else
+#import bevy_pbr::forward_io::{VertexOutput, FragmentOutput}
+#endif
 
 @fragment
 fn fragment(
