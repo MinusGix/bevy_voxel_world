@@ -6,7 +6,8 @@ use bevy::{
     render::{
         mesh::MeshVertexBufferLayoutRef,
         render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+            AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef,
+            SpecializedMeshPipelineError,
         },
     },
     utils::HashMap,
@@ -26,12 +27,27 @@ const BLUE: u8 = 2;
 struct MainWorld;
 
 impl VoxelWorldConfig for MainWorld {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
     fn spawning_distance(&self) -> u32 {
         10
     }
 
-    fn voxel_lookup_delegate(&self) -> VoxelLookupDelegate {
+    fn voxel_lookup_delegate(&self) -> VoxelLookupDelegate<Self::MaterialIndex> {
         Box::new(move |_chunk_pos| get_voxel_fn())
+    }
+
+    fn texture_index_mapper(
+        &self,
+    ) -> Arc<dyn Fn(Self::MaterialIndex) -> [u32; 3] + Send + Sync> {
+        Arc::new(|mat| match mat {
+            0 => [0, 0, 0],
+            1 => [1, 1, 1],
+            2 => [2, 2, 2],
+            3 => [3, 3, 3],
+            _ => [0, 0, 0],
+        })
     }
 }
 
@@ -40,6 +56,9 @@ impl VoxelWorldConfig for MainWorld {
 struct SecondWorld;
 
 impl VoxelWorldConfig for SecondWorld {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
     fn texture_index_mapper(&self) -> Arc<dyn Fn(u8) -> [u32; 3] + Send + Sync> {
         Arc::new(|vox_mat: u8| match vox_mat {
             RED => [1, 1, 1],
@@ -68,10 +87,8 @@ fn setup(mut commands: Commands, mut second_world: VoxelWorld<SecondWorld>) {
 
     // camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(-10.0, 10.0, -10.0).looking_at(Vec3::Y * 4.0, Vec3::Y),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(-10.0, 10.0, -10.0).looking_at(Vec3::Y * 4.0, Vec3::Y),
         // This tells bevy_voxel_world to use this cameras transform to calculate spawning area
         VoxelWorldCamera::<MainWorld>::default(),
         VoxelWorldCamera::<SecondWorld>::default(),
@@ -79,17 +96,16 @@ fn setup(mut commands: Commands, mut second_world: VoxelWorld<SecondWorld>) {
 
     // Sun
     let cascade_shadow_config = CascadeShadowConfigBuilder { ..default() }.build();
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
+    commands.spawn((
+        DirectionalLight {
             color: Color::srgb(0.98, 0.95, 0.82),
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, 0.0)
+        Transform::from_xyz(0.0, 0.0, 0.0)
             .looking_at(Vec3::new(-0.15, -0.1, 0.15), Vec3::Y),
         cascade_shadow_config,
-        ..default()
-    });
+    ));
 
     // Ambient light, same color as sun
     commands.insert_resource(AmbientLight {
@@ -179,6 +195,14 @@ impl Material for CustomVoxelMaterial {
         layout: &MeshVertexBufferLayoutRef,
         _key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
+        if descriptor
+            .vertex
+            .shader_defs
+            .contains(&ShaderDefVal::Bool("PREPASS_PIPELINE".into(), true))
+        {
+            return Ok(());
+        }
+
         // Use `vertex_layout()` from `bevy_voxel_world` to get the correct vertex layout
         let vertex_layout = layout.0.get_layout(&vertex_layout())?;
         descriptor.vertex.buffers = vec![vertex_layout];

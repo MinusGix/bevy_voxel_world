@@ -1,17 +1,32 @@
 use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*, utils::HashMap};
 use bevy_voxel_world::prelude::*;
 use noise::{HybridMulti, NoiseFn, Perlin};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 #[derive(Resource, Clone, Default)]
 struct MainWorld;
 
 impl VoxelWorldConfig for MainWorld {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
     fn spawning_distance(&self) -> u32 {
         15
     }
 
-    fn voxel_lookup_delegate(&self) -> VoxelLookupDelegate {
+    fn voxel_lookup_delegate(&self) -> VoxelLookupDelegate<Self::MaterialIndex> {
         Box::new(move |_chunk_pos| get_voxel_fn())
+    }
+
+    fn texture_index_mapper(
+        &self,
+    ) -> Arc<dyn Fn(Self::MaterialIndex) -> [u32; 3] + Send + Sync> {
+        Arc::new(|mat| match mat {
+            0 => [0, 0, 0],
+            1 => [1, 1, 1],
+            2 => [2, 2, 2],
+            3 => [3, 3, 3],
+            _ => [0, 0, 0],
+        })
     }
 }
 
@@ -39,27 +54,24 @@ fn setup(mut commands: Commands) {
 
     // camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(-120.0, 150.0, -120.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(-120.0, 150.0, -120.0).looking_at(Vec3::ZERO, Vec3::Y),
         // This tells bevy_voxel_world to use this cameras transform to calculate spawning area
         VoxelWorldCamera::<MainWorld>::default(),
     ));
 
     // Sun
     let cascade_shadow_config = CascadeShadowConfigBuilder { ..default() }.build();
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
+    commands.spawn((
+        DirectionalLight {
             color: Color::srgb(0.98, 0.95, 0.82),
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, 0.0)
+        Transform::from_xyz(0.0, 0.0, 0.0)
             .looking_at(Vec3::new(-0.15, -0.1, 0.15), Vec3::Y),
         cascade_shadow_config,
-        ..default()
-    });
+    ));
 
     // Ambient light, same color as sun
     commands.insert_resource(AmbientLight {
@@ -119,8 +131,8 @@ fn move_camera(
     time: Res<Time>,
     mut cam_transform: Query<&mut Transform, With<VoxelWorldCamera<MainWorld>>>,
 ) {
-    cam_transform.single_mut().translation.x += time.delta_seconds() * 7.0;
-    cam_transform.single_mut().translation.z += time.delta_seconds() * 12.0;
+    cam_transform.single_mut().translation.x += time.delta_secs() * 7.0;
+    cam_transform.single_mut().translation.z += time.delta_secs() * 12.0;
 }
 
 fn explosion(
@@ -132,7 +144,7 @@ fn explosion(
     let mut timeout = timeout.get_single_mut().unwrap();
     timeout
         .timer
-        .tick(Duration::from_secs_f32(time.delta_seconds()));
+        .tick(Duration::from_secs_f32(time.delta_secs()));
 
     if !timeout.timer.finished() {
         return;
@@ -145,7 +157,8 @@ fn explosion(
         camera_transform.forward().z,
     )
     .normalize();
-    let impact_point = camera_transform.translation + (direction * 300.0) - Vec3::Y * 10.0;
+    let impact_point =
+        camera_transform.translation + (direction * 300.0) - Vec3::Y * 10.0;
 
     if let Some((impact_point, _)) =
         voxel_world.get_random_surface_voxel(impact_point.as_ivec3(), 70)
@@ -157,8 +170,11 @@ fn explosion(
         for x in -radius..=radius {
             for y in -radius..=radius {
                 for z in -radius..=radius {
-                    let pos =
-                        IVec3::new(x + impact_point.x, y + impact_point.y, z + impact_point.z);
+                    let pos = IVec3::new(
+                        x + impact_point.x,
+                        y + impact_point.y,
+                        z + impact_point.z,
+                    );
 
                     if pos.distance_squared(impact_point) <= radius.pow(2) {
                         voxel_world.set_voxel(pos, WorldVoxel::Air);
@@ -172,8 +188,11 @@ fn explosion(
         match vox {
             WorldVoxel::Solid(mat) => {
                 for _ in 0..num_voxels {
-                    if let Some(rand_vox) = voxel_world.get_random_surface_voxel(impact_point, 25) {
-                        voxel_world.set_voxel(rand_vox.0 + IVec3::Y, WorldVoxel::Solid(mat));
+                    if let Some(rand_vox) =
+                        voxel_world.get_random_surface_voxel(impact_point, 25)
+                    {
+                        voxel_world
+                            .set_voxel(rand_vox.0 + IVec3::Y, WorldVoxel::Solid(mat));
                     }
                 }
             }

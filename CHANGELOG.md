@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.11.0
+
+- Adds possibility of customizing the meshing step through a `chunk_meshing_delegate` function in the config.
+- Add possibility to insert components bundles from meshing function.
+- Makes various types and functions associated with meshing public.
+
+Breaking Changes:
+
+- `type ChunkUserBundle` now needs to be implemented for `VoxelWorldConfig`:
+
+```rust
+impl VoxelWorldConfig for MainWorld {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+    ...
+}
+```
+
+## 0.10.2
+
+- `ChunkData` is now public. You can get the data for a chunk by calling `voxel_world.get_chunk_data(chunk_pos)`
+- `get_closest_surface_voxel`, `get_random_surface_voxel` and `get_surface_voxel_at_2d_pos` have been deprecated. It's better to use ray-casting instead to find voxels according to your needs.
+- A system for debug-drawing chunks have been added. This can be used to visualize chunk boundaries in the world.
+- Add `ChunkWillUpdate` event which is fired when `set_voxel` has been called
+- Fix an error in the events that caused events to fire incorrectly.
+
+## 0.10.1
+
+Fix crash on macOS (#43)
+
+## 0.10.0
+
+Upgrade to Bevy 0.15
+
+Thanks to @Touma-Kazusa2 for contributing this release
+
+## 0.9.0
+
+Use a generic type for voxel material index. See the `textures_custom_idx.rs` example for details on how this can be used.
+
+Breaking Changes:
+
+- `type MaterialIndex` now needs to be implemented for `VoxelWorldConfig`:
+
+```rust
+impl VoxelWorldConfig for MainWorld {
+    type MaterialIndex = u8;
+    ...
+}
+```
+
+## 0.8.1
+
+Add some debug drawing helpers
+
 ## 0.8.0
 
 Upgrade to Bevy 0.14

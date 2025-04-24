@@ -1,7 +1,9 @@
 use bevy::color::palettes::css;
 use bevy::prelude::*;
 use smooth_bevy_cameras::{
-    controllers::unreal::{UnrealCameraBundle, UnrealCameraController, UnrealCameraPlugin},
+    controllers::unreal::{
+        UnrealCameraBundle, UnrealCameraController, UnrealCameraPlugin,
+    },
     LookTransformPlugin,
 };
 use std::sync::Arc;
@@ -23,6 +25,9 @@ struct VoxelTrace {
 }
 
 impl VoxelWorldConfig for MyMainWorld {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
     fn texture_index_mapper(&self) -> Arc<dyn Fn(u8) -> [u32; 3] + Send + Sync> {
         Arc::new(|vox_mat: u8| match vox_mat {
             SNOWY_BRICK => [0, 1, 2],
@@ -72,14 +77,11 @@ fn setup(
 ) {
     // Cursor cube
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Cuboid {
-                half_size: Vec3::splat(0.5),
-            })),
-            material: materials.add(Color::srgba_u8(124, 144, 255, 128)),
-            transform: Transform::from_xyz(0.0, -10.0, 0.0),
-            ..default()
-        },
+        Transform::from_xyz(0.0, -10.0, 0.0),
+        Mesh3d(meshes.add(Mesh::from(Cuboid {
+            half_size: Vec3::splat(0.5),
+        }))),
+        MeshMaterial3d(materials.add(Color::srgba_u8(124, 144, 255, 128))),
         CursorCube {
             voxel_pos: IVec3::new(0, -10, 0),
             voxel_mat: FULL_BRICK,
@@ -89,7 +91,7 @@ fn setup(
     // Camera
     commands
         .spawn((
-            Camera3dBundle::default(),
+            Camera3d::default(),
             // This tells bevy_voxel_world to use this cameras transform to calculate spawning area
             VoxelWorldCamera::<MyMainWorld>::default(),
         ))
@@ -101,14 +103,13 @@ fn setup(
         ));
 
     // light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
+    commands.spawn((
+        PointLight {
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
-        ..default()
-    });
+        Transform::from_xyz(4.0, 8.0, 4.0),
+    ));
 }
 
 fn create_voxel_scene(mut voxel_world: VoxelWorld<MyMainWorld>) {
@@ -144,7 +145,7 @@ fn update_cursor_cube(
     for ev in cursor_evr.read() {
         // Get a ray from the cursor position into the world
         let (camera, cam_gtf) = camera_info.single();
-        let Some(ray) = camera.viewport_to_world(cam_gtf, ev.position) else {
+        let Ok(ray) = camera.viewport_to_world(cam_gtf, ev.position) else {
             return;
         };
 
@@ -173,21 +174,26 @@ fn draw_trace(trace: Res<VoxelTrace>, mut gizmos: Gizmos) {
             let voxel_center = voxel_coord.as_vec3() + Vec3::splat(VOXEL_SIZE / 2.);
 
             gizmos.cuboid(
-                Transform::from_translation(voxel_center).with_scale(Vec3::splat(VOXEL_SIZE)),
+                Transform::from_translation(voxel_center)
+                    .with_scale(Vec3::splat(VOXEL_SIZE)),
                 css::PINK,
             );
 
             if let Ok(normal) = face.try_into() {
                 gizmos.circle(
-                    voxel_center + (normal * VOXEL_SIZE / 2.),
-                    Dir3::new(normal).unwrap(),
+                    Isometry3d::new(
+                        voxel_center + (normal * VOXEL_SIZE / 2.),
+                        Quat::from_rotation_arc(Vec3::Z, normal),
+                    ),
                     0.8 * VOXEL_SIZE / 2.,
                     css::RED.with_alpha(0.5),
                 );
 
                 gizmos.sphere(
-                    trace_start + (trace.end - trace_start) * time,
-                    Quat::IDENTITY,
+                    Isometry3d::new(
+                        trace_start + (trace.end - trace_start) * time,
+                        Quat::IDENTITY,
+                    ),
                     0.1,
                     Color::BLACK,
                 );

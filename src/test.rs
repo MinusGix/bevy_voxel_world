@@ -15,10 +15,8 @@ fn _test_setup_app() -> App {
     app.add_plugins((MinimalPlugins, VoxelWorldPlugin::<DefaultWorld>::minimal()));
     app.add_systems(Startup, |mut commands: Commands| {
         commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-                ..default()
-            },
+            Camera3d::default(),
+            Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
             VoxelWorldCamera::<DefaultWorld>::default(),
         ));
     });
@@ -92,7 +90,10 @@ fn set_voxel_can_be_found_by_2d_coordinate() {
 
             for pos in check_pos.clone() {
                 assert_eq!(
-                    voxel_world.get_surface_voxel_at_2d_pos(Vec2::new(pos.x as f32, pos.z as f32)),
+                    voxel_world.get_surface_voxel_at_2d_pos(Vec2::new(
+                        pos.x as f32,
+                        pos.z as f32
+                    )),
                     Some((pos, test_voxel))
                 )
             }
@@ -176,6 +177,27 @@ fn chunk_will_despawn_event() {
 }
 
 #[test]
+fn chunk_will_update_event() {
+    let mut app = _test_setup_app();
+
+    app.add_systems(Update, |mut voxel_world: VoxelWorld<DefaultWorld>| {
+        voxel_world.set_voxel(IVec3::new(0, 0, 0), WorldVoxel::Solid(1));
+    });
+
+    app.update();
+
+    app.add_systems(
+        Update,
+        |mut ev_chunk_will_update: EventReader<ChunkWillUpdate<DefaultWorld>>| {
+            let count = ev_chunk_will_update.read().count();
+            assert!(count > 0)
+        },
+    );
+
+    app.update();
+}
+
+#[test]
 fn raycast_finds_voxel() {
     let mut app = _test_setup_app();
 
@@ -188,7 +210,12 @@ fn raycast_finds_voxel() {
         Startup,
         move |mut voxel_world: VoxelWorld<DefaultWorld>,
               buffers: (
-            ResMut<ChunkMapUpdateBuffer<DefaultWorld>>,
+            ResMut<
+                ChunkMapUpdateBuffer<
+                    DefaultWorld,
+                    <DefaultWorld as VoxelWorldConfig>::MaterialIndex,
+                >,
+            >,
             ResMut<MeshCacheInsertBuffer<DefaultWorld>>,
         )| {
             let test_voxel = crate::voxel::WorldVoxel::Solid(1);
@@ -209,8 +236,12 @@ fn raycast_finds_voxel() {
                     is_empty: false,
                     fill_type: FillType::Mixed,
                     entity: Entity::PLACEHOLDER,
+                    has_generated: false,
                 },
-                ChunkWillSpawn::<DefaultWorld>::new(IVec3::new(0, 0, 0), Entity::PLACEHOLDER),
+                ChunkWillSpawn::<DefaultWorld>::new(
+                    IVec3::new(0, 0, 0),
+                    Entity::PLACEHOLDER,
+                ),
             ));
         },
     );
@@ -293,7 +324,8 @@ fn visit_voxel_check(
         test_state.test_name
     );
     assert!(
-        test_state.path_step_index == 0 || test_state.expected_face.unwrap_or(face) == face,
+        test_state.path_step_index == 0
+            || test_state.expected_face.unwrap_or(face) == face,
         "{}: Expected entering through {:?}",
         test_state.test_name,
         test_state.expected_face
@@ -464,7 +496,8 @@ fn voxel_line_traversal_ending_on_voxel_boundary() {
         IVec3::new(0, 0, 50),
     ];
 
-    let mut test_state = VisitVoxelTestState::new("Ending on voxel boundary", &expected_path, None);
+    let mut test_state =
+        VisitVoxelTestState::new("Ending on voxel boundary", &expected_path, None);
     voxel_line_traversal(start, end, |voxel_coords, time, face| {
         visit_voxel_check(&mut test_state, voxel_coords, time, face)
     });
@@ -474,4 +507,22 @@ fn voxel_line_traversal_ending_on_voxel_boundary() {
         "{}: Expected end voxel reached",
         test_state.test_name
     );
+}
+
+#[test]
+fn can_get_chunk_data() {
+    let mut app = _test_setup_app();
+
+    app.add_systems(Update, |mut voxel_world: VoxelWorld<DefaultWorld>| {
+        voxel_world.set_voxel(IVec3::new(0, 0, 0), WorldVoxel::Solid(1));
+    });
+
+    app.update();
+
+    app.add_systems(Update, |voxel_world: VoxelWorld<DefaultWorld>| {
+        let chunk_data = voxel_world.get_chunk_data(IVec3::ZERO);
+        assert!(chunk_data.is_some());
+    });
+
+    app.update();
 }

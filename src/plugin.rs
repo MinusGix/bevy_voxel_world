@@ -1,18 +1,16 @@
 use bevy::{
     asset::load_internal_asset,
+    image::{CompressedImageFormats, ImageSampler, ImageType},
     pbr::ExtendedMaterial,
     prelude::*,
-    render::{
-        render_asset::RenderAssetUsages,
-        texture::{CompressedImageFormats, ImageSampler, ImageType},
-    },
+    render::render_asset::RenderAssetUsages,
 };
 
 use crate::{
     configuration::{DefaultWorld, VoxelWorldConfig},
     voxel_material::{
-        prepare_texture, LoadingTexture, StandardVoxelMaterial,
-        VOXEL_TEXTURE_PREPASS_SHADER_HANDLE, VOXEL_TEXTURE_SHADER_HANDLE,
+        prepare_texture, LoadingTexture, StandardVoxelMaterial, TextureLayers,
+        VOXEL_TEXTURE_SHADER_HANDLE,
     },
     voxel_world::*,
     voxel_world_internal::Internals,
@@ -109,7 +107,8 @@ where
                 PreUpdate,
                 (
                     (
-                        (Internals::<C>::spawn_chunks, Internals::<C>::retire_chunks).chain(),
+                        (Internals::<C>::spawn_chunks, Internals::<C>::retire_chunks)
+                            .chain(),
                         Internals::<C>::remesh_dirty_chunks,
                     )
                         .chain(),
@@ -126,7 +125,8 @@ where
             )
             .add_event::<ChunkWillSpawn<C>>()
             .add_event::<ChunkWillDespawn<C>>()
-            .add_event::<ChunkWillRemesh<C>>();
+            .add_event::<ChunkWillRemesh<C>>()
+            .add_event::<ChunkWillUpdate<C>>();
 
         // Spawning of meshes is optional, mainly to simplify testing.
         // This makes voxel_world work with a MinimalPlugins setup.
@@ -138,19 +138,21 @@ where
                 Shader::from_wgsl
             );
 
-            load_internal_asset!(
-                app,
-                VOXEL_TEXTURE_PREPASS_SHADER_HANDLE,
-                "shaders/voxel_texture_prepass.wgsl",
-                Shader::from_wgsl
-            );
+            // load_internal_asset!(
+            //     app,
+            //     VOXEL_TEXTURE_PREPASS_SHADER_HANDLE,
+            //     "shaders/voxel_texture_prepass.wgsl",
+            //     Shader::from_wgsl
+            // );
 
             app.add_systems(Update, Internals::<C>::spawn_meshes);
         }
 
         if !self.use_custom_material && self.spawn_meshes {
-            let mat_plugins = app.get_added_plugins::<MaterialPlugin::<
-                ExtendedMaterial<StandardMaterial, StandardVoxelMaterial>>>();
+            let mat_plugins =
+                app.get_added_plugins::<MaterialPlugin<
+                    ExtendedMaterial<StandardMaterial, StandardVoxelMaterial>,
+                >>();
 
             if mat_plugins.is_empty() {
                 app.add_plugins(MaterialPlugin::<
@@ -161,6 +163,7 @@ where
             let mut preloaded_texture = true;
             let mut preloaded_normal = true;
             let texture_conf = self.config.voxel_texture();
+            let mut texture_layers = 0;
 
             // Use built-in default texture if no texture is specified.
             let (image_handle, normal_handle) = if texture_conf.is_none() {
@@ -180,14 +183,17 @@ where
                 let texture = texture_conf.as_ref().unwrap();
                 let asset_server = app.world().get_resource::<AssetServer>().unwrap();
                 preloaded_texture = false;
+                texture_layers = texture.index_count.unwrap_or(0);
 
                 let image = asset_server.load(texture.path.clone());
 
-                let normal_image = if let Some(normal_path) = texture.normal_path.as_ref() {
+                let normal_image = if let Some(normal_path) = texture.normal_path.as_ref()
+                {
                     preloaded_normal = false;
                     asset_server.load(normal_path.clone())
                 } else {
-                    let mut image_assets = app.world_mut().resource_mut::<Assets<Image>>();
+                    let mut image_assets =
+                        app.world_mut().resource_mut::<Assets<Image>>();
                     image_assets.add(Image::default())
                 };
 
@@ -220,6 +226,7 @@ where
                 normal_handle: normal_handle.clone(),
             });
             app.insert_resource(VoxelWorldMaterialHandle { handle: mat_handle });
+            app.insert_resource(TextureLayers(texture_layers));
 
             app.add_systems(Update, prepare_texture);
 
@@ -233,7 +240,8 @@ where
 
         if self.use_custom_material {
             if self.config.init_custom_materials() {
-                let mut custom_material_assets = app.world_mut().resource_mut::<Assets<M>>();
+                let mut custom_material_assets =
+                    app.world_mut().resource_mut::<Assets<M>>();
                 let handle = custom_material_assets.add(self.material.clone());
                 app.insert_resource(VoxelWorldMaterialHandle { handle });
             }
@@ -248,5 +256,7 @@ where
 
             app.add_systems(Update, Internals::<C>::assign_material::<M>);
         }
+
+        app.insert_resource(self.config.clone());
     }
 }

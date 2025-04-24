@@ -4,7 +4,8 @@ use bevy::{
     render::{
         mesh::MeshVertexBufferLayoutRef,
         render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+            AsBindGroup, RenderPipelineDescriptor, ShaderDefVal, ShaderRef,
+            SpecializedMeshPipelineError,
         },
     },
 };
@@ -23,7 +24,12 @@ const BLUE: u8 = 2;
 struct MyMainWorld;
 
 impl VoxelWorldConfig for MyMainWorld {
-    fn texture_index_mapper(&self) -> Arc<dyn Fn(u8) -> [u32; 3] + Send + Sync> {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
+    fn texture_index_mapper(
+        &self,
+    ) -> Arc<dyn Fn(Self::MaterialIndex) -> [u32; 3] + Send + Sync> {
         Arc::new(|vox_mat: u8| match vox_mat {
             RED => [1, 1, 1],
             GREEN => [2, 2, 2],
@@ -55,10 +61,8 @@ fn main() {
 fn setup(mut commands: Commands) {
     // Camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         VoxelWorldCamera::<MyMainWorld>::default(),
     ));
 }
@@ -105,6 +109,16 @@ impl Material for CustomVoxelMaterial {
         layout: &MeshVertexBufferLayoutRef,
         _key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
+        // Skip specialization if this is the prepass pipeline
+        // This is necessary in some cases because the prepass pipeline expects a different vertex layout
+        if descriptor
+            .vertex
+            .shader_defs
+            .contains(&ShaderDefVal::Bool("PREPASS_PIPELINE".into(), true))
+        {
+            return Ok(());
+        }
+
         // Use `vertex_layout()` from `bevy_voxel_world` to get the correct vertex layout
         let vertex_layout = layout.0.get_layout(&vertex_layout())?;
         descriptor.vertex.buffers = vec![vertex_layout];

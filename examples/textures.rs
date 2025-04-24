@@ -3,6 +3,7 @@ use bevy_voxel_world::prelude::*;
 use std::sync::Arc;
 
 // Declare materials as consts for convenience
+// This can also be an enum or other type, see the `textures_custom_idx.rs` example
 const SNOWY_BRICK: u8 = 0;
 const FULL_BRICK: u8 = 1;
 const GRASS: u8 = 2;
@@ -11,8 +12,13 @@ const GRASS: u8 = 2;
 struct MyMainWorld;
 
 impl VoxelWorldConfig for MyMainWorld {
-    fn texture_index_mapper(&self) -> Arc<dyn Fn(u8) -> [u32; 3] + Send + Sync> {
-        Arc::new(|vox_mat: u8| match vox_mat {
+    type MaterialIndex = u8;
+    type ChunkUserBundle = ();
+
+    fn texture_index_mapper(
+        &self,
+    ) -> Arc<dyn Fn(Self::MaterialIndex) -> [u32; 3] + Send + Sync> {
+        Arc::new(|vox_mat| match vox_mat {
             SNOWY_BRICK => [0, 1, 2],
             FULL_BRICK => [2, 2, 2],
             GRASS | _ => [3, 3, 3],
@@ -41,23 +47,20 @@ fn main() {
 fn setup(mut commands: Commands) {
     // Camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(10.0, 10.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         // This tells bevy_voxel_world to use this cameras transform to calculate spawning area
         VoxelWorldCamera::<MyMainWorld>::default(),
     ));
 
     // light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
+    commands.spawn((
+        PointLight {
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
-        ..default()
-    });
+        Transform::from_xyz(4.0, 8.0, 4.0),
+    ));
 }
 
 fn create_voxel_scene(mut voxel_world: VoxelWorld<MyMainWorld>) {

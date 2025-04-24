@@ -1,20 +1,22 @@
 use std::borrow::Cow;
 
 use bevy::{
+    asset::RenderAssetUsages,
+    image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     pbr::{
-        MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline, MaterialPipelineKey,
-        MeshPipelineKey,
+        MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline,
+        MaterialPipelineKey, MeshPipelineKey,
     },
     prelude::*,
     reflect::TypePath,
     render::{
-        mesh::{MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeDescriptor},
-        render_asset::RenderAssetUsages,
+        mesh::{
+            MeshVertexAttribute, MeshVertexBufferLayoutRef, VertexAttributeDescriptor,
+        },
         render_resource::{
             AsBindGroup, Extent3d, RenderPipelineDescriptor, ShaderDefVal, ShaderRef,
             SpecializedMeshPipelineError, TextureDimension, TextureFormat, VertexFormat,
         },
-        texture::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     },
 };
 
@@ -28,12 +30,13 @@ pub(crate) struct LoadingTexture {
     pub normal_handle: Handle<Image>,
 }
 
-pub const VOXEL_TEXTURE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(6998301138411443008);
+#[derive(Resource)]
+pub(crate) struct TextureLayers(pub u32);
 
-pub const VOXEL_TEXTURE_PREPASS_SHADER_HANDLE: Handle<Shader> =
-    Handle::weak_from_u128(6998301138411443009);
+pub const VOXEL_TEXTURE_SHADER_HANDLE: Handle<Shader> =
+    Handle::weak_from_u128(6998301138411443008);
 
-pub(crate) const ATTRIBUTE_TEX_INDEX: MeshVertexAttribute =
+pub const ATTRIBUTE_TEX_INDEX: MeshVertexAttribute =
     MeshVertexAttribute::new("TextureIndex", 989640910, VertexFormat::Uint32x3);
 
 const VERTEX_LAYOUT: &[VertexAttributeDescriptor] = &[
@@ -47,6 +50,20 @@ const VERTEX_LAYOUT: &[VertexAttributeDescriptor] = &[
     //Mesh::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(7),
     ATTRIBUTE_TEX_INDEX.at_shader_location(8),
 ];
+
+pub fn vertex_layout() -> Vec<VertexAttributeDescriptor> {
+    vec![
+        Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+        Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+        Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
+        //Mesh::ATTRIBUTE_TANGENT.at_shader_location(4),
+        Mesh::ATTRIBUTE_COLOR.at_shader_location(5),
+        Mesh::ATTRIBUTE_COLOR.at_shader_location(7),
+        //Mesh::ATTRIBUTE_JOINT_INDEX.at_shader_location(6),
+        //Mesh::ATTRIBUTE_JOINT_WEIGHT.at_shader_location(7),
+        ATTRIBUTE_TEX_INDEX.at_shader_location(8),
+    ]
+}
 
 const VERTEX_LAYOUT_PREPASS: &[VertexAttributeDescriptor] = &[
     Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
@@ -93,26 +110,37 @@ impl MaterialExtension for StandardVoxelMaterial {
         //     "Key NORMAL_PREPASS: {}",
         //     key.contains(MaterialPipelineKey::NORMAL_PREPASS)
         // );
-        println!("MeshKey: {:?}", key.mesh_key);
-        println!("\tLayout: {:?}", layout);
-        // if descriptor.label != Some(Cow::Borrowed("pbr_prepass_pipeline")) {
-        // if key.mesh_key.contains(MeshPipelineKey::NORMAL_PREPASS) {
-        if descriptor.label == Some(Cow::Borrowed("pbr_prepass_pipeline")) {
-            let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT_PREPASS)?;
-            descriptor.vertex.buffers = vec![vertex_layout];
-        } else {
-            let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT)?;
-            descriptor.vertex.buffers = vec![vertex_layout];
+        // I was messing around with this or something?
+        // println!("MeshKey: {:?}", key.mesh_key);
+        // println!("\tLayout: {:?}", layout);
+        // // if descriptor.label != Some(Cow::Borrowed("pbr_prepass_pipeline")) {
+        // // if key.mesh_key.contains(MeshPipelineKey::NORMAL_PREPASS) {
+        // if descriptor.label == Some(Cow::Borrowed("pbr_prepass_pipeline")) {
+        //     let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT_PREPASS)?;
+        //     descriptor.vertex.buffers = vec![vertex_layout];
+        // } else {
+        //     let vertex_layout = layout.0.get_layout(&VERTEX_LAYOUT)?;
+        //     descriptor.vertex.buffers = vec![vertex_layout];
+        // }
+        if descriptor
+            .vertex
+            .shader_defs
+            .contains(&ShaderDefVal::Bool("PREPASS_PIPELINE".into(), true))
+        {
+            return Ok(());
         }
+
+        let vertex_layout = layout.0.get_layout(&vertex_layout())?;
+        descriptor.vertex.buffers = vec![vertex_layout];
         Ok(())
     }
 }
 
 fn shader_def_name(v: &ShaderDefVal) -> &str {
     match v {
-        ShaderDefVal::Bool(name, _) | ShaderDefVal::Int(name, _) | ShaderDefVal::UInt(name, _) => {
-            name
-        }
+        ShaderDefVal::Bool(name, _)
+        | ShaderDefVal::Int(name, _)
+        | ShaderDefVal::UInt(name, _) => name,
     }
 }
 
@@ -122,13 +150,18 @@ pub(crate) fn prepare_texture(
     mut images: ResMut<Assets<Image>>,
 ) {
     // TODO: after initialization this system should never really run again. Can we kill it?
-    let image_load_state = asset_server.get_load_state(loading_texture.handle.clone().id());
-    let normal_image_load_state =
-        asset_server.get_load_state(loading_texture.normal_handle.clone().id());
-    if (loading_texture.is_loaded && loading_texture.is_loaded_normal)
-        || image_load_state != Some(bevy::asset::LoadState::Loaded)
-        || (!loading_texture.is_loaded_normal
-            && normal_image_load_state != Some(bevy::asset::LoadState::Loaded))
+    // let image_load_state = asset_server.get_load_state(loading_texture.handle.clone().id());
+    // let normal_image_load_state =
+    //     asset_server.get_load_state(loading_texture.normal_handle.clone().id());
+    // if (loading_texture.is_loaded && loading_texture.is_loaded_normal)
+    //     || image_load_state != Some(bevy::asset::LoadState::Loaded)
+    //     || (!loading_texture.is_loaded_normal
+    //         && normal_image_load_state != Some(bevy::asset::LoadState::Loaded))
+    if loading_texture.is_loaded
+        || !matches!(
+            asset_server.get_load_state(loading_texture.handle.clone().id()),
+            Some(bevy::asset::LoadState::Loaded)
+        )
     {
         return;
     }
@@ -168,7 +201,8 @@ fn default_normal_map(layers: u32) -> Image {
     let mut data = Vec::with_capacity((4 * 4 * layers) as usize);
     for _ in 0..layers {
         data.extend_from_slice(&[
-            128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255,
+            128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255, 255, 128, 128, 255,
+            255,
         ]);
     }
 
