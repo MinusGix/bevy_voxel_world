@@ -33,6 +33,11 @@ pub mod custom_meshing {
     pub use crate::meshing::generate_chunk_mesh;
     pub use crate::meshing::mesh_from_quads;
     pub use crate::meshing::VoxelArray;
+    pub use block_mesh::{
+        visible_block_faces, OrientedBlockFace, UnitQuadBuffer, Voxel as BlockMeshVoxel,
+        VoxelVisibility, RIGHT_HANDED_Y_UP_CONFIG,
+    };
+    pub use ndshape::ConstShape;
 }
 
 pub mod debug {

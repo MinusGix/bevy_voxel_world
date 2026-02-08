@@ -9,6 +9,7 @@ pub enum WorldVoxel<I = u8> {
     Unset,
     Air,
     Solid(I),
+    Translucent(I),
 }
 
 impl<I: PartialEq> WorldVoxel<I> {
@@ -23,14 +24,18 @@ impl<I: PartialEq> WorldVoxel<I> {
     pub fn is_solid(&self) -> bool {
         matches!(self, WorldVoxel::Solid(_))
     }
+
+    pub fn is_translucent(&self) -> bool {
+        matches!(self, WorldVoxel::Translucent(_))
+    }
 }
 
 impl<I: PartialEq> Voxel for WorldVoxel<I> {
     fn get_visibility(&self) -> VoxelVisibility {
-        if *self == WorldVoxel::Air || *self == WorldVoxel::Unset {
-            VoxelVisibility::Empty
-        } else {
-            VoxelVisibility::Opaque
+        match self {
+            WorldVoxel::Air | WorldVoxel::Unset => VoxelVisibility::Empty,
+            WorldVoxel::Solid(_) => VoxelVisibility::Opaque,
+            WorldVoxel::Translucent(_) => VoxelVisibility::Translucent,
         }
     }
 }
@@ -40,7 +45,7 @@ impl<I: PartialEq + Eq + Default + Copy> MergeVoxel for WorldVoxel<I> {
 
     fn merge_value(&self) -> Self::MergeValue {
         match self {
-            WorldVoxel::Solid(v) => *v,
+            WorldVoxel::Solid(v) | WorldVoxel::Translucent(v) => *v,
             _ => I::default(),
         }
     }

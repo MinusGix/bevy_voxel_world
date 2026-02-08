@@ -348,22 +348,20 @@ impl<C: VoxelWorldConfig> VoxelWorld<'_, C> {
             voxel_line_traversal(trace_start, trace_end, |voxel_coords, _time, face| {
                 let voxel = get_voxel(voxel_coords);
 
-                if !voxel.is_unset() && filter.call((voxel_coords.as_vec3(), voxel)) {
-                    if voxel.is_solid() {
-                        raycast_result = Some(VoxelRaycastResult {
-                            position: voxel_coords.as_vec3(),
-                            normal: face.try_into().ok(),
-                            voxel,
-                        });
+                if !voxel.is_unset()
+                    && !voxel.is_air()
+                    && filter.call((voxel_coords.as_vec3(), voxel))
+                {
+                    raycast_result = Some(VoxelRaycastResult {
+                        position: voxel_coords.as_vec3(),
+                        normal: face.try_into().ok(),
+                        voxel,
+                    });
 
-                        // Found solid voxel - stop traversing
-                        false
-                    } else {
-                        // Voxel is not solid - continue traversing
-                        true
-                    }
+                    // Found non-empty voxel - stop traversing
+                    false
                 } else {
-                    // Ignoring this voxel bc of filter - continue traversing
+                    // Ignoring this voxel - continue traversing
                     true
                 }
             });
@@ -605,22 +603,20 @@ impl<C: VoxelWorldConfig> VoxelWorldRead<'_, C> {
             voxel_line_traversal(trace_start, trace_end, |voxel_coords, _time, face| {
                 let voxel = get_voxel(voxel_coords);
 
-                if !voxel.is_unset() && filter.call((voxel_coords.as_vec3(), voxel)) {
-                    if voxel.is_solid() {
-                        raycast_result = Some(VoxelRaycastResult {
-                            position: voxel_coords.as_vec3(),
-                            normal: face.try_into().ok(),
-                            voxel,
-                        });
+                if !voxel.is_unset()
+                    && !voxel.is_air()
+                    && filter.call((voxel_coords.as_vec3(), voxel))
+                {
+                    raycast_result = Some(VoxelRaycastResult {
+                        position: voxel_coords.as_vec3(),
+                        normal: face.try_into().ok(),
+                        voxel,
+                    });
 
-                        // Found solid voxel - stop traversing
-                        false
-                    } else {
-                        // Voxel is not solid - continue traversing
-                        true
-                    }
+                    // Found non-empty voxel - stop traversing
+                    false
                 } else {
-                    // Ignoring this voxel bc of filter - continue traversing
+                    // Ignoring this voxel - continue traversing
                     true
                 }
             });
@@ -863,22 +859,20 @@ impl<C: VoxelWorldConfig> VoxelWorldReadOwned<C> {
             voxel_line_traversal(trace_start, trace_end, |voxel_coords, _time, face| {
                 let voxel = get_voxel(voxel_coords);
 
-                if !voxel.is_unset() && filter.call((voxel_coords.as_vec3(), voxel)) {
-                    if voxel.is_solid() {
-                        raycast_result = Some(VoxelRaycastResult {
-                            position: voxel_coords.as_vec3(),
-                            normal: face.try_into().ok(),
-                            voxel,
-                        });
+                if !voxel.is_unset()
+                    && !voxel.is_air()
+                    && filter.call((voxel_coords.as_vec3(), voxel))
+                {
+                    raycast_result = Some(VoxelRaycastResult {
+                        position: voxel_coords.as_vec3(),
+                        normal: face.try_into().ok(),
+                        voxel,
+                    });
 
-                        // Found solid voxel - stop traversing
-                        false
-                    } else {
-                        // Voxel is not solid - continue traversing
-                        true
-                    }
+                    // Found non-empty voxel - stop traversing
+                    false
                 } else {
-                    // Ignoring this voxel bc of filter - continue traversing
+                    // Ignoring this voxel - continue traversing
                     true
                 }
             });

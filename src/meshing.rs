@@ -88,7 +88,7 @@ pub fn mesh_from_quads<I: PartialEq + Copy>(
 
             let voxel_index = PaddedChunkShape::linearize(quad.minimum) as usize;
             let material_type = match voxels[voxel_index] {
-                WorldVoxel::Solid(mt) => texture_index_mapper(mt),
+                WorldVoxel::Solid(mt) | WorldVoxel::Translucent(mt) => texture_index_mapper(mt),
                 _ => [0, 0, 0],
             };
             material_types.extend(std::iter::repeat(material_type).take(4));

@@ -256,6 +256,7 @@ impl<C: VoxelWorldConfig + Send + Sync + 'static, I: Hash + Copy + Eq> ChunkTask
         F: FnMut(IVec3) -> WorldVoxel<I> + Send + 'static,
     {
         let mut filled_count = 0;
+        let mut has_translucent = false;
         let modified_voxels = (*self.modified_voxels).read().unwrap();
         let mut voxels = [WorldVoxel::Unset; PaddedChunkShape::SIZE as usize];
         let mut material_count = HashSet::new();
@@ -275,6 +276,9 @@ impl<C: VoxelWorldConfig + Send + Sync + 'static, I: Hash + Copy + Eq> ChunkTask
                 voxels[i as usize] = *voxel;
                 if !voxel.is_unset() && !voxel.is_air() {
                     filled_count += 1;
+                    if voxel.is_translucent() {
+                        has_translucent = true;
+                    }
                 }
                 continue;
             }
@@ -283,14 +287,24 @@ impl<C: VoxelWorldConfig + Send + Sync + 'static, I: Hash + Copy + Eq> ChunkTask
 
             voxels[i as usize] = voxel;
 
-            if let WorldVoxel::Solid(m) = voxel {
-                filled_count += 1;
-                material_count.insert(m);
+            match voxel {
+                WorldVoxel::Solid(m) | WorldVoxel::Translucent(m) => {
+                    filled_count += 1;
+                    material_count.insert(m);
+                    if voxel.is_translucent() {
+                        has_translucent = true;
+                    }
+                }
+                _ => {}
             }
         }
 
         self.chunk_data.is_empty = filled_count == 0;
-        self.chunk_data.is_full = filled_count == PaddedChunkShape::SIZE;
+        // A full chunk of all-opaque can skip meshing (no visible faces).
+        // But if any translucent voxels exist, we still need meshing for
+        // translucent boundary faces, so don't mark as full.
+        self.chunk_data.is_full =
+            filled_count == PaddedChunkShape::SIZE && !has_translucent;
 
         if self.chunk_data.is_full && material_count.len() == 1 {
             self.chunk_data.fill_type = FillType::Uniform(voxels[0]);
