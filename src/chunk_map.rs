@@ -24,7 +24,7 @@ pub struct ChunkMapData<I> {
 /// Holds a map of all chunks that are currently spawned spawned
 /// The chunks also exist as entities that can be queried in the ECS,
 /// but having this map in addition allows for faster spatial lookups
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct ChunkMap<C, I> {
     map: Arc<RwLock<ChunkMapData<I>>>,
     _marker: PhantomData<C>,
