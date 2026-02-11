@@ -102,7 +102,7 @@ pub fn mesh_from_quads<I: PartialEq + Copy>(
 
     render_mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
-        VertexAttributeValues::Float32x3(positions.clone()),
+        VertexAttributeValues::Float32x3(positions),
     );
     render_mesh.insert_attribute(
         Mesh::ATTRIBUTE_NORMAL,
@@ -118,22 +118,19 @@ pub fn mesh_from_quads<I: PartialEq + Copy>(
     );
 
     // Apply ambient occlusion values
-    {
-        let colors: Vec<[f32; 4]> = positions
-            .iter()
-            .enumerate()
-            .map(|(i, _)| match aos[i] {
-                0 => [0.1, 0.1, 0.1, 1.0],
-                1 => [0.3, 0.3, 0.3, 1.0],
-                2 => [0.5, 0.5, 0.5, 1.0],
-                3 => [1.0, 1.0, 1.0, 1.0],
-                _ => [1.0, 1.0, 1.0, 1.0],
-            })
-            .collect();
-        render_mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
-    }
+    let colors: Vec<[f32; 4]> = aos
+        .iter()
+        .map(|&ao| match ao {
+            0 => [0.1, 0.1, 0.1, 1.0],
+            1 => [0.3, 0.3, 0.3, 1.0],
+            2 => [0.5, 0.5, 0.5, 1.0],
+            3 => [1.0, 1.0, 1.0, 1.0],
+            _ => [1.0, 1.0, 1.0, 1.0],
+        })
+        .collect();
+    render_mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
 
-    render_mesh.insert_indices(Indices::U32(indices.clone()));
+    render_mesh.insert_indices(Indices::U32(indices));
 
     render_mesh
 }
