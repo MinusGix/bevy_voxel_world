@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{
+    configuration::BulkVoxelFillFn,
     prelude::{ChunkMeshingFn, TextureIndexMapperFn, VoxelWorldConfig},
     voxel::WorldVoxel,
     voxel_world_internal::ModifiedVoxels,
@@ -303,6 +304,74 @@ impl<C: VoxelWorldConfig + Send + Sync + 'static, I: Hash + Copy + Eq> ChunkTask
         // A full chunk of all-opaque can skip meshing (no visible faces).
         // But if any translucent voxels exist, we still need meshing for
         // translucent boundary faces, so don't mark as full.
+        self.chunk_data.is_full =
+            filled_count == PaddedChunkShape::SIZE && !has_translucent;
+
+        if self.chunk_data.is_full && material_count.len() == 1 {
+            self.chunk_data.fill_type = FillType::Uniform(voxels[0]);
+            self.chunk_data.voxels = None;
+        } else if filled_count > 0 {
+            self.chunk_data.fill_type = FillType::Mixed;
+            self.chunk_data.voxels = Some(Arc::new(voxels));
+        } else {
+            self.chunk_data.fill_type = FillType::Empty;
+            self.chunk_data.voxels = None;
+        };
+
+        self.chunk_data.generate_hash();
+    }
+
+    /// Generate voxel data using a bulk fill function that populates the entire padded array
+    /// at once. Modified voxels are applied as a sparse post-pass. More efficient than
+    /// per-voxel `generate` when the consumer can batch-fill from cached data.
+    pub fn generate_bulk(&mut self, fill_fn: BulkVoxelFillFn<I>) {
+        let mut voxels = [WorldVoxel::Unset; PaddedChunkShape::SIZE as usize];
+
+        self.chunk_data.has_generated = true;
+
+        // Let the consumer fill the array
+        fill_fn(&mut voxels);
+
+        // Sparse post-pass: apply modified voxels (only iterate entries that exist)
+        let modified_voxels = (*self.modified_voxels).read().unwrap();
+        if !modified_voxels.is_empty() {
+            let chunk_min = IVec3::new(
+                self.position.x * CHUNK_SIZE_I - 1,
+                self.position.y * CHUNK_SIZE_I - 1,
+                self.position.z * CHUNK_SIZE_I - 1,
+            );
+            let chunk_max = chunk_min + IVec3::splat(PADDED_CHUNK_SIZE as i32);
+
+            for (&world_pos, &voxel) in modified_voxels.iter() {
+                if world_pos.cmpge(chunk_min).all() && world_pos.cmplt(chunk_max).all() {
+                    let local = (world_pos - chunk_min).as_uvec3();
+                    let idx =
+                        PaddedChunkShape::linearize([local.x, local.y, local.z]) as usize;
+                    voxels[idx] = voxel;
+                }
+            }
+        }
+        drop(modified_voxels);
+
+        // Single counting pass
+        let mut filled_count: u32 = 0;
+        let mut has_translucent = false;
+        let mut material_count = HashSet::new();
+
+        for voxel in &voxels {
+            match voxel {
+                WorldVoxel::Solid(m) | WorldVoxel::Translucent(m) => {
+                    filled_count += 1;
+                    material_count.insert(*m);
+                    if voxel.is_translucent() {
+                        has_translucent = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        self.chunk_data.is_empty = filled_count == 0;
         self.chunk_data.is_full =
             filled_count == PaddedChunkShape::SIZE && !has_translucent;
 

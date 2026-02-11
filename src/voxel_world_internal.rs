@@ -310,9 +310,17 @@ where
         configuration: Res<C>,
     ) {
         let thread_pool = AsyncComputeTaskPool::get();
+        let bulk_delegate = configuration.bulk_voxel_fill_delegate();
 
         for chunk in dirty_chunks.iter() {
-            let voxel_data_fn = (configuration.voxel_lookup_delegate())(chunk.position);
+            let bulk_fill_fn = bulk_delegate
+                .as_ref()
+                .map(|delegate| delegate(chunk.position));
+            let voxel_data_fn = if bulk_fill_fn.is_none() {
+                Some((configuration.voxel_lookup_delegate())(chunk.position))
+            } else {
+                None
+            };
             let chunk_meshing_fn = (configuration
                 .chunk_meshing_delegate()
                 .unwrap_or(Box::new(default_chunk_meshing_delegate)))(
@@ -329,7 +337,11 @@ where
             let mesh_map = mesh_cache.get_mesh_map();
 
             let thread = thread_pool.spawn(async move {
-                chunk_task.generate(voxel_data_fn);
+                if let Some(fill_fn) = bulk_fill_fn {
+                    chunk_task.generate_bulk(fill_fn);
+                } else {
+                    chunk_task.generate(voxel_data_fn.unwrap());
+                }
 
                 // No need to mesh if the chunk is empty or full
                 if chunk_task.is_empty() || chunk_task.is_full() {

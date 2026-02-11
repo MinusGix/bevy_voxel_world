@@ -1,14 +1,25 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use crate::chunk::VoxelArray;
+use crate::chunk::{PaddedChunkShape, VoxelArray};
 use crate::meshing::generate_chunk_mesh;
 use crate::voxel::WorldVoxel;
 use bevy::prelude::*;
+use ndshape::ConstShape;
 
 pub type VoxelLookupFn<I = u8> = Box<dyn FnMut(IVec3) -> WorldVoxel<I> + Send + Sync>;
 pub type VoxelLookupDelegate<I = u8> =
     Box<dyn Fn(IVec3) -> VoxelLookupFn<I> + Send + Sync>;
+
+/// A function that fills the entire padded 34³ voxel array for one chunk at once.
+/// More efficient than per-voxel lookups when the consumer can batch-fill from cached data.
+pub type BulkVoxelFillFn<I = u8> =
+    Box<dyn FnOnce(&mut [WorldVoxel<I>; PaddedChunkShape::SIZE as usize]) + Send>;
+
+/// A delegate that produces a `BulkVoxelFillFn` for a given chunk position.
+/// Called on the main thread (outer), returns a closure run on an async thread (inner).
+pub type BulkVoxelFillDelegate<I = u8> =
+    Box<dyn Fn(IVec3) -> BulkVoxelFillFn<I> + Send + Sync>;
 
 pub type TextureIndexMapperFn<I = u8> = Arc<dyn Fn(I) -> [u32; 3] + Send + Sync>;
 
@@ -124,6 +135,14 @@ pub trait VoxelWorldConfig: Resource + Default + Clone {
     /// needs to be thread-safe, since chunk computation happens on a separate thread.
     fn voxel_lookup_delegate(&self) -> VoxelLookupDelegate<Self::MaterialIndex> {
         Box::new(|_| Box::new(|_| WorldVoxel::Unset))
+    }
+
+    /// Optional bulk fill delegate that fills the entire 34³ padded voxel array at once.
+    /// When provided, `generate_bulk` is used instead of per-voxel `generate`.
+    fn bulk_voxel_fill_delegate(
+        &self,
+    ) -> Option<BulkVoxelFillDelegate<Self::MaterialIndex>> {
+        None
     }
 
     /// A function that returns a function that computes the mesh for a chunk
