@@ -77,7 +77,7 @@ const VERTEX_LAYOUT_PREPASS: &[VertexAttributeDescriptor] = &[
     ATTRIBUTE_TEX_INDEX.at_shader_location(8),
 ];
 #[derive(Asset, AsBindGroup, Debug, Clone, TypePath)]
-pub(crate) struct StandardVoxelMaterial {
+pub struct StandardVoxelMaterial {
     #[texture(100, dimension = "2d_array")]
     #[sampler(101)]
     pub voxels_texture: Handle<Image>,
